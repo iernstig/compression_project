@@ -9,7 +9,72 @@
 #include <vector>
 #define assert(x) do{if(!(x))__debugbreak();}while(0)
 
-const int max_match_length = 1 << 8;
+struct BitReader
+{
+	uint64_t buffer;
+	int buffer_bits;
+	uint64_t *stream;
+
+	uint64_t read_bits(int num_bits) {
+		uint64_t data = 0;
+		for (int i = 0; i < num_bits; i++)
+		{
+			if (buffer_bits == 0)
+			{
+				buffer_bits = 64;
+				buffer = *(stream++);
+			}
+			data <<= 1;
+			data |= buffer & 1;
+			buffer >>= 1;
+			--buffer_bits;
+		}
+		return data;
+	}
+};
+
+struct BitWriter
+{
+	uint64_t buffer;
+	int buffer_bits;
+	std::vector<uint64_t> stream;
+	void push_bits(uint64_t data, int num_bits) {
+		for (int i = num_bits - 1; i >= 0; i--)
+		{
+			buffer |= ((data >> i) & 1) << (buffer_bits);
+			++buffer_bits;
+			if (buffer_bits == 64)
+			{
+				stream.push_back(buffer);
+				buffer = 0;
+				buffer_bits = 0;
+			}
+		}
+	}
+
+	void *to_bytes(int *num_bytes)
+	{
+		stream.push_back(buffer);
+		*num_bytes = sizeof(uint64_t)*stream.size();
+		char *data = (char*)malloc(*num_bytes);
+		memcpy(data, &stream[0], *num_bytes);
+		return data;
+	}
+};
+
+BitWriter make_bitwriter() {
+	BitWriter ret = {};
+	return ret;
+}
+
+BitReader make_bitreader(void *data) {
+	BitReader ret = {};
+	ret.stream = (uint64_t *)data;
+	return ret;
+}
+
+
+const int max_match_length = 1 << 16;
 const int max_match_dist = 1 << 15;
 struct MatchResult {
 	bool is_literal;
@@ -19,9 +84,7 @@ struct MatchResult {
 			uint16_t start;
 			uint16_t length;
 		};
-		struct {
-			char literal_buffer[2];
-		};
+		char literal;
 	};
 };
 
@@ -46,35 +109,65 @@ struct HuffTree
 	int num_leaves;
 	int root;
 	Code *code_table;
+
+	int decode_next_symbol(BitReader *br)
+	{
+		int node_idx = root;
+		while (node_idx >= num_leaves){
+			bool left = br->read_bits(1);
+			node_idx = left ? nodes[node_idx].left : nodes[node_idx].right;
+		}
+		return nodes[node_idx].value;
+	}
+
+	void encode_symbol(BitWriter *bw, int symbol)
+	{
+		Code c = code_table[symbol];
+		bw->push_bits(c.bits, c.length);
+	}
+
+
 };
 
 
-//watch the stack-size
-void compute_codes(HuffTree tree, int node_idx, Code c)
+void compute_codes(HuffTree tree)
 {
-	HuffNode n = tree.nodes[node_idx];
-	if (n.left != -1)
+	std::vector<std::pair<int,Code>> to_process;
+	to_process.push_back({ tree.root,{} });
+	tree.code_table[tree.root] = {};
+	while(to_process.size() > 0)
 	{
-		Code cc = { c.bits, c.length + 1,  };
-		if(n.left < tree.num_leaves)
-			tree.code_table[tree.nodes[n.left].value] = cc;
-		else
-			compute_codes(tree, n.left, cc);
+		int node_idx = to_process.back().first;
+		Code c = to_process.back().second;
+		to_process.pop_back();
+		HuffNode n = tree.nodes[node_idx];
+		if (n.left != -1)
+		{
+			Code cc = { c.bits<<1  | 1, c.length + 1 };
+			if (n.left < tree.num_leaves)
+				tree.code_table[tree.nodes[n.left].value] = cc;
+			else
+				to_process.push_back({ n.left, cc });
+		}
+
+		if (n.right != -1)
+		{
+			Code cc = { c.bits<<1, c.length + 1 };
+			if (n.right < tree.num_leaves)
+				tree.code_table[tree.nodes[n.right].value] =cc;
+			else
+				to_process.push_back({n.right, cc});
+		}
 	}
 
-	if (n.right != -1)
-	{
-		Code cc = {(c.bits<<1) | 1 , c.length + 1 };
-		if (n.right < tree.num_leaves)
-			tree.code_table[tree.nodes[n.right].value] = cc;
-		else
-			compute_codes(tree, n.right, cc);
-	}
 }
+
+#include "intrin.h"
 
 HuffTree create_huff_tree(int *freqs, int num_elems)
 {
 	std::vector<HuffNode> nodes;
+	int num_leaves = 0;
 	for (int i = 0; i < num_elems; i++){
 		if (freqs[i] != 0) {
 			HuffNode node = {};
@@ -82,6 +175,7 @@ HuffTree create_huff_tree(int *freqs, int num_elems)
 			node.freq = freqs[i];
 			node.left = node.right = -1;
 			nodes.push_back(node);
+			++num_leaves;
 		}
 	}
 	//sort based on freqency.
@@ -91,7 +185,7 @@ HuffTree create_huff_tree(int *freqs, int num_elems)
 	std::queue<int> a, b;
 	for (int i = 0; i < nodes.size();i++) a.push(i);
 
-	for (int i = 0; i < num_elems-1; i++)
+	while(a.size() + b.size() > 1)
 	{
 		int chosen_nodes[2];
 		for (int j = 0; j < 2; j++)
@@ -126,12 +220,14 @@ HuffTree create_huff_tree(int *freqs, int num_elems)
 	}
 
 	HuffTree ret = {};
-	ret.num_leaves = num_elems;
+	ret.num_leaves = num_leaves;
 	ret.nodes = nodes;
 	ret.root = nodes.size() == 1 ? a.front() : b.front();
-	ret.code_table = (Code *)malloc(sizeof(int)*num_elems);
+	ret.code_table = (Code *)malloc(sizeof(Code)*num_elems);
+	memset(ret.code_table, 0xff, sizeof(Code)*num_elems);
 
-	compute_codes(ret, ret.root, {});
+
+	compute_codes(ret);
 	return ret;
 }
 
@@ -139,89 +235,96 @@ HuffTree create_huff_tree(int *freqs, int num_elems)
 
 
 
-struct BitReader
-{
-	uint64_t buffer;
-	int buffer_bits;
-	uint64_t *stream;
-	
-	uint64_t read_bits(int num_bits) {
-		uint64_t data = 0;
-		for (int i = 0; i < num_bits; i++)
-		{
-			if (buffer_bits == 0)
-			{
-				buffer_bits = 64;
-				buffer = *(stream++);
-			}
-			data <<= 1;
-			data |= buffer & 1;
-			buffer >>= 1;
-			--buffer_bits;
-		}
-		return data;
-	}
-};
-
-struct BitWriter
-{
-	uint64_t buffer;
-	int buffer_bits;
-	std::vector<uint64_t> stream;
-	void push_bits(uint64_t data, int num_bits){
-		for (int i = num_bits-1; i >= 0; i--)
-		{
-			buffer |= ((data>>i) & 1)<<(buffer_bits);
-			++buffer_bits;
-			if (buffer_bits == 64)
-			{
-				stream.push_back(buffer);
-				buffer = 0;
-				buffer_bits = 0;
-			}
-		}
-	}
-	
-	void *to_bytes(int *num_bytes)
-	{
-		stream.push_back(buffer);
-		*num_bytes = sizeof(uint64_t)*stream.size();
-		char *data = (char*)malloc(*num_bytes);
-		memcpy(data, &stream[0], *num_bytes);
-		return data;
-	}
-};
-
-BitWriter make_bitwriter() {
-	BitWriter ret = {};
-	return ret;
-}
-
-BitReader make_bitreader(void *data) {
-	BitReader ret = {};
-	ret.stream = (uint64_t *)data;
-	return ret;
-}
 
 
 
-// Just pack the match results tightly.
-// I suppose we chould shove some huffman in here?
+HuffTree ht = {};
+HuffTree ht_2 = {};
+
+// pack the match results with huffman-trees
 void* compress_match_result(std::vector<MatchResult> results, int *num_bytes){
 	auto bw = make_bitwriter();
 	bw.push_bits(results.size(), 32);
 
 
-	for (MatchResult m : results){
-		bw.push_bits(m.is_literal, 1);
-		if (m.is_literal){
-			for (int i = 0; i < sizeof(m.literal_buffer); i++){
-				bw.push_bits(m.literal_buffer[i],8);
-			}
+	static int freqs[256+32];
+	static int freqs_2[32];
+
+
+	for (MatchResult m : results)
+	{
+		if (m.is_literal) {
+			freqs[(uint8_t)m.literal]++;
 		}
 		else {
-			bw.push_bits(m.length, 8);
-			bw.push_bits(m.start, 15);
+			unsigned long fst_idx;
+			_BitScanReverse(&fst_idx, m.length);
+			freqs[256 + fst_idx]++;
+
+			
+			_BitScanReverse(&fst_idx, m.length);
+			freqs[256 + fst_idx]++;
+
+			//use separate huff tree here (we're implied if we get a match length)
+			_BitScanReverse(&fst_idx, m.start+1);
+			freqs_2[fst_idx]++;
+		}
+	}
+	printf("freqs = ");
+	for (int i = 0; i < 256+32; i++){
+		printf("%d ", freqs[i]);
+	}
+	printf("\n");
+
+
+	printf("creating the huff tree!\n");
+	ht = create_huff_tree(freqs, 256+32);
+	ht_2 = create_huff_tree(freqs_2, 32);
+
+
+#if 1
+	//Huffman info:
+	int pre_bits = 0;
+	int post_bits = 0;
+	int sum = 0;
+	for (int i = 0; i < 256+32; i++)
+	{
+		post_bits += freqs[i] * ht.code_table[i].length;
+		pre_bits += freqs[i] * 8;
+		sum += freqs[i];
+	}
+	printf("pre_bits: %d, post_bits %d\n", pre_bits, post_bits);
+	float optimal = 0;
+	for (int i = 0; i < 256+32; i++)
+	{
+		if (freqs[i] != 0)
+		{
+			optimal += freqs[i] * log2(sum / freqs[i]);
+		}
+
+	}
+	printf("entropy = %f bits\n", optimal);
+
+	printf("saving %d bytes - size of huff tree\n", (pre_bits-post_bits)/8);
+
+#endif
+
+	for (MatchResult m : results){
+		if (m.is_literal){
+			ht.encode_symbol(&bw, (uint8_t) m.literal);
+		}
+		else {
+
+			unsigned long fst_idx;
+			_BitScanReverse(&fst_idx, m.length);
+			ht.encode_symbol(&bw, fst_idx+256);
+			bw.push_bits(m.length, fst_idx);
+
+
+
+			_BitScanReverse(&fst_idx, m.start+1);
+			ht_2.encode_symbol(&bw, fst_idx);
+			bw.push_bits(m.start+1, fst_idx);
 		}
 	}
 
@@ -237,16 +340,21 @@ void decompress_match_results(void *data, std::vector<MatchResult> *results) {
 
 	for (int i = 0; i < num_matches; i++){
 		MatchResult m = {};
-		m.is_literal = br.read_bits(1);
+		int symbol = ht.decode_next_symbol(&br);
+		m.is_literal = symbol < 256;
 
 		if (m.is_literal) {
-			for (int i = 0; i < sizeof(m.literal_buffer); i++) {
-				m.literal_buffer[i] = br.read_bits(8);
-			}
+			m.literal = symbol;
 		}
 		else {
-			m.length = br.read_bits(8);
-			m.start = br.read_bits(15);
+			symbol -= 256;
+			int fst_set = symbol;
+			m.length = (1 << fst_set) | br.read_bits(fst_set);
+			
+			
+			fst_set = ht_2.decode_next_symbol(&br);
+			m.start = ((1 << fst_set) | br.read_bits(fst_set))-1;
+
 		}
 		results->push_back(m);
 	}
@@ -315,13 +423,12 @@ MatchResult find_next_match(CircularBuffer buff, char **data, int data_len)
 		ret.start = i;
 		ret.length = j;
 	}
-	if (ret.length < sizeof(ret.literal_buffer))
+	if (ret.length < 4) // this constant is an approximation of when a copy is worth more just inserting a literal into the steam.
 	{
 		ret = {};
 		ret.is_literal = true;
-		int cpy_len = min(data_len, sizeof(ret.literal_buffer));
-		memcpy(ret.literal_buffer, *data, cpy_len);
-		*data += cpy_len;
+		ret.literal = **data;
+		*data += 1;
 	}
 	else {
 		*data += ret.length;
@@ -333,11 +440,9 @@ MatchResult find_next_match(CircularBuffer buff, char **data, int data_len)
 void add_match(CircularBuffer *buffer, MatchResult match, std::vector<char> *vec)
 {
 	if (match.is_literal) {
-		for (int i = 0; i < sizeof(match.literal_buffer); i++){
-			char byte = match.literal_buffer[i];
-			buffer->add_char(byte);
-			if (vec) vec->push_back(byte);
-		}
+		char byte = match.literal;
+		buffer->add_char(byte);
+		if (vec) vec->push_back(byte);
 	}
 	else
 	{
@@ -392,8 +497,6 @@ void decode(void *encoded_data, int num_bytes, std::vector<char> *decoded_data)
 	}
 }
 
-
-
 char *read_file(const char *path)
 {
 	FILE *f;
@@ -415,7 +518,18 @@ int main()
 #if 0
 	{
 		int freqs[] = {8, 4, 2, 1, 1};
-		auto tree = create_huff_tree(freqs, 4);
+		auto tree = create_huff_tree(freqs, 5);
+		
+		
+		BitWriter bw = make_bitwriter();
+		tree.encode_symbol(&bw, 1);
+		tree.encode_symbol(&bw, 0);
+
+		int num_bytes;
+		BitReader br = make_bitreader(bw.to_bytes(&num_bytes));
+
+		int a = tree.decode_next_symbol(&br);
+		int b = tree.decode_next_symbol(&br);
 
 		return 0;
 	}
@@ -439,13 +553,15 @@ int main()
 	void *encoded_data = encode(data, num_data_bytes, &num_bytes);
 	decode(encoded_data, num_bytes, &decoded_data);
 
-	for (int i = 0; i < num_data_bytes; i++) {
-		assert(data[i] == decoded_data[i]);
-	}
+	
 
 	printf("Compressed %d bytes of data to %d bytes\n", num_data_bytes, num_bytes);
 	printf("_Insane_ Compression Ratio of: %f\n", num_bytes/(float)num_data_bytes);
 
+
+	for (int i = 0; i < num_data_bytes; i++) {
+		assert(data[i] == decoded_data[i]);
+	}
 	getchar();
 }
 

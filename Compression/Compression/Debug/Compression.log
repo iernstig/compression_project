@@ -1,8 +1,10 @@
 ﻿  Compression.cpp
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(93): warning C4018: '<': signed/unsigned mismatch
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(237): warning C4244: 'initializing': conversion from 'uint64_t' to 'int', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(245): warning C4244: '=': conversion from 'uint64_t' to 'char', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(249): warning C4244: '=': conversion from 'uint64_t' to 'uint16_t', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(250): warning C4244: '=': conversion from 'uint64_t' to 'uint16_t', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(375): warning C4018: '<': signed/unsigned mismatch
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(188): warning C4018: '<': signed/unsigned mismatch
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(305): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(344): warning C4244: 'initializing': conversion from 'uint64_t' to 'int', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(359): warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(359): warning C4244: '=': conversion from 'uint64_t' to 'uint16_t', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(363): warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(363): warning C4244: '=': conversion from 'uint64_t' to 'uint16_t', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(489): warning C4018: '<': signed/unsigned mismatch
   Compression.vcxproj -> C:\Users\Danie\compression\compression_project\Compression\Debug\Compression.exe
