@@ -1,10 +1,11 @@
 ﻿  Compression.cpp
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(188): warning C4018: '<': signed/unsigned mismatch
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(305): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(344): warning C4244: 'initializing': conversion from 'uint64_t' to 'int', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(359): warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(359): warning C4244: '=': conversion from 'uint64_t' to 'uint16_t', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(363): warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(363): warning C4244: '=': conversion from 'uint64_t' to 'uint16_t', possible loss of data
-c:\users\danie\compression\compression_project\compression\compression\compression.cpp(489): warning C4018: '<': signed/unsigned mismatch
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(252): warning C4018: '<': signed/unsigned mismatch
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(380): warning C4018: '<': signed/unsigned mismatch
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(459): warning C4244: 'initializing': conversion from 'uint64_t' to 'int', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(465): warning C4244: '=': conversion from 'uint64_t' to 'int', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(468): warning C4244: '=': conversion from 'uint64_t' to 'int', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(490): warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(490): warning C4244: '=': conversion from 'uint64_t' to 'int', possible loss of data
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(494): warning C4334: '<<': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
+c:\users\danie\compression\compression_project\compression\compression\compression.cpp(494): warning C4244: '=': conversion from 'uint64_t' to 'int', possible loss of data
   Compression.vcxproj -> C:\Users\Danie\compression\compression_project\Compression\Debug\Compression.exe
